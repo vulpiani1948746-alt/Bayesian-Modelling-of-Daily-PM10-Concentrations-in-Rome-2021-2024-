@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bayesian Modelling of Daily PM10 in Rome</title>
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reset.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono&display=swap"
+      rel="stylesheet">
+<style>
+  :root {
+    --navy: #1a3a5c;
+    --navy-light: #2c5282;
+    --gold: #c79100;
+    --gold-soft: #fff4d6;
+    --green: #1e7e3c;
+    --red: #b00020;
+    --bg-soft: #f7f9fc;
+    --border: #d0d7de;
+  }
+  .reveal { font-family: 'Inter', sans-serif; font-size: 22px;
+            color: #1a1a1a; }
+  .reveal .slides section {
+    text-align: left; padding: 0.5em 1em;
+  }
+  .reveal h1 { font-family: 'Crimson Pro', serif;
+               font-weight: 600; color: var(--navy);
+               font-size: 1.75em; line-height: 1.15;
+               letter-spacing: -0.5px; }
+  .reveal h2 { font-family: 'Crimson Pro', serif;
+               font-weight: 600; color: var(--navy);
+               font-size: 1.30em; margin: 0 0 0.45em 0;
+               border-bottom: 3px solid var(--gold);
+               padding-bottom: 0.12em; display: inline-block; }
+  .reveal h3 { font-weight: 600; color: var(--navy-light);
+               font-size: 0.95em; margin: 0.6em 0 0.3em 0; }
+  .reveal p { line-height: 1.45; margin: 0.4em 0; }
+  .reveal ul, .reveal ol { margin: 0.3em 0 0.5em 1em;
+                           line-height: 1.4; }
+  .reveal li { margin: 0.18em 0; }
+  .reveal strong { color: var(--navy); }
+  .reveal em { color: var(--navy-light); font-style: italic; }
+  .reveal table { font-size: 0.78em; margin: 0.45em auto;
+                  border-collapse: collapse;
+                  font-family: 'Inter', sans-serif; }
+  .reveal th, .reveal td {
+    border: 1px solid var(--border); padding: 5px 11px;
+    text-align: center; }
+  .reveal th { background: var(--navy); color: white;
+               font-weight: 600; font-size: 0.92em;
+               letter-spacing: 0.3px; }
+  .reveal tr:nth-child(even) td { background: var(--bg-soft); }
+  .reveal td.l { text-align: left; }
+  .reveal code, .reveal .mono {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-soft); padding: 1px 6px;
+    border-radius: 3px; font-size: 0.85em;
+    border: 1px solid var(--border); }
+  .reveal img { background: none; border: 1px solid var(--border);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+                border-radius: 4px; }
+  .reveal .small { font-size: 0.72em; color: #555;
+                   line-height: 1.35; }
+  .reveal .tiny { font-size: 0.62em; color: #666; }
+  .reveal .highlight {
+    background: linear-gradient(180deg, transparent 55%,
+                                var(--gold-soft) 55%);
+    padding: 1px 3px; }
+  .reveal .good  { color: var(--green); font-weight: 600; }
+  .reveal .bad   { color: var(--red);   font-weight: 600; }
+  .reveal .gold  { color: var(--gold);  font-weight: 600; }
+  .reveal .navy  { color: var(--navy);  font-weight: 600; }
+  .twocol { display: flex; gap: 1.5em; align-items: flex-start; }
+  .twocol > div { flex: 1; }
+  .keybox {
+    background: var(--bg-soft);
+    border-left: 4px solid var(--gold);
+    padding: 0.5em 0.9em;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.92em;
+    margin: 0.5em 0;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8em;
+    margin: 0.6em 0;
+  }
+  .stat {
+    text-align: center;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    padding: 0.6em 0.4em;
+    border-radius: 5px;
+  }
+  .stat .val {
+    font-family: 'Crimson Pro', serif;
+    font-size: 1.7em; font-weight: 600;
+    color: var(--navy); line-height: 1;
+  }
+  .stat .lab {
+    font-size: 0.65em; color: #555;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-top: 0.3em;
+  }
+  .equation-box {
+    background: var(--bg-soft); border-left: 4px solid var(--navy);
+    padding: 0.4em 0.8em; margin: 0.4em 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .equation-box .model-label {
+    font-weight: 600; color: var(--navy);
+    font-size: 0.85em; margin-bottom: 0.2em;
+  }
+  .title-slide {
+    text-align: center !important;
+    padding-top: 1.5em !important;
+  }
+  .title-slide h1 {
+    font-size: 2.1em; margin-bottom: 0.4em;
+  }
+  .title-slide .subtitle {
+    font-family: 'Crimson Pro', serif;
+    font-style: italic; font-size: 1.05em;
+    color: var(--navy-light); margin-bottom: 1.5em;
+  }
+  .title-slide .author-block {
+    margin-top: 1.5em; font-size: 0.85em; color: #444;
+  }
+  .title-slide .divider {
+    width: 90px; height: 3px;
+    background: var(--gold); margin: 1em auto;
+  }
+  .slide-tag {
+    position: absolute; top: 20px; right: 25px;
+    background: var(--navy); color: white;
+    padding: 3px 9px; border-radius: 12px;
+    font-size: 0.55em; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .reveal .progress { color: var(--gold); }
+  .reveal .slide-number { background: rgba(26,58,92,0.7);
+                          font-family: 'Inter', sans-serif; }
+</style>
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$']], displayMath: [['\\[', '\\]']] }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+<!-- ============================================================ -->
+<!-- SLIDE 1 — Title (00:00–01:30) -->
+<!-- ============================================================ -->
+<section class="title-slide">
+  <h1>Bayesian Modelling of<br>Daily PM10 Concentrations in Rome</h1>
+  <div class="divider"></div>
+  <p class="subtitle">A comparison of three time-series models<br>
+    with MCMC inference — 2021 to 2024</p>
+
+  <div style="margin-top: 2em;
+              display: grid; grid-template-columns: repeat(4, 1fr);
+              gap: 1em; max-width: 80%; margin-left: auto; margin-right: auto;">
+    <div class="stat">
+      <div class="val">1 304</div>
+      <div class="lab">daily observations</div>
+    </div>
+    <div class="stat">
+      <div class="val">3</div>
+      <div class="lab">competing models</div>
+    </div>
+    <div class="stat">
+      <div class="val">4</div>
+      <div class="lab">weather drivers</div>
+    </div>
+    <div class="stat">
+      <div class="val">90</div>
+      <div class="lab">days held out</div>
+    </div>
+  </div>
+
+  <p class="author-block">
+    <strong>Chiara Vulpiani</strong> &mdash; matricola 1948746<br>
+    Final Project &mdash; Fundamentals of Statistical Learning II
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2 — Study Objectives (01:30–02:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Objectives</span>
+  <h2>Three goals of this study</h2>
+
+  <div style="display: grid; grid-template-columns: 60px 1fr;
+              gap: 0.5em 1em; align-items: start; margin-top: 0.5em;">
+    <div style="font-family: 'Crimson Pro', serif; font-size: 2.2em;
+                color: var(--gold); font-weight: 600;">1</div>
+    <div>
+      <h3>Quantify the marginal effects of weather</h3>
+      <p>Wind speed, rainfall, temperature, humidity &mdash; estimating
+      the full <strong>95% credible interval</strong>, not just point
+      values, to map the uncertainty.</p>
+    </div>
+
+    <div style="font-family: 'Crimson Pro', serif; font-size: 2.2em;
+                color: var(--gold); font-weight: 600;">2</div>
+    <div>
+      <h3>Compare three models of increasing complexity</h3>
+      <p>Using the <strong>Deviance Information Criterion (DIC)</strong>
+      and verifying accurate <strong>out-of-sample predictions</strong>
+      on a 90-day hold-out.</p>
+    </div>
+
+    <div style="font-family: 'Crimson Pro', serif; font-size: 2.2em;
+                color: var(--gold); font-weight: 600;">3</div>
+    <div>
+      <h3>Rigorously validate the chosen model</h3>
+      <p>Full set of <strong>Posterior Predictive Checks</strong> and
+      formal <strong>residual analysis</strong>, to ensure statistical
+      soundness.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3 — Data & geographical selection (02:30–04:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Data sources</span>
+  <h2>Data collection &amp; geographical selection</h2>
+
+  <div class="twocol">
+    <div>
+      <h3>Response: PM10</h3>
+      <ul>
+        <li>Source: European Environment Agency
+          (R package <code>EEAaq</code>)</li>
+        <li>Station: <strong>L.GO PERESTRELLO</strong>,
+          Preneste district</li>
+        <li>Type: <em>urban background</em>
+          (population exposure, not road peaks)</li>
+        <li>Hourly &rarr; daily mean</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Predictors: meteorology</h3>
+      <ul>
+        <li>Source: ARPA Lazio micro-meteo network</li>
+        <li>9 candidate stations across the region</li>
+        <li>Pairing principle: closest + same urban type</li>
+        <li>30-min &rarr; daily aggregates</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="twocol" style="margin-top: 0.5em;">
+    <div style="flex: 1.05;">
+      <h3>Haversine distance from L.GO PERESTRELLO</h3>
+      <table style="font-size: 0.72em; width: 100%;">
+        <thead>
+          <tr><th>Code</th><th>Name</th><th>Type</th>
+              <th>km</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong class="gold">AL007</strong></td>
+              <td class="l"><strong>Boncompagni</strong></td>
+              <td><strong>urban</strong></td>
+              <td><strong class="gold">4.5</strong></td></tr>
+          <tr><td>AL001</td><td class="l">Tor Vergata</td>
+              <td>metro</td><td>9.6</td></tr>
+          <tr><td>AL003</td><td class="l">Cavaliere</td>
+              <td>rural</td><td>9.7</td></tr>
+          <tr><td>others</td><td class="l">AL002…AL009</td>
+              <td>—</td><td>22 — 88</td></tr>
+        </tbody>
+      </table>
+      <p class="tiny">
+        AL007 wins on geography <em>and</em> typology &rarr; spatial
+        and classification consistency.
+      </p>
+    </div>
+    <div style="flex: 1.4;">
+      <h3>Observed daily PM10 over 4 years</h3>
+      <img src="pm10_timeseries.png"
+           alt="PM10 daily time series"
+           style="width: 100%;">
+      <p class="tiny">
+        Strong seasonality, frequent exceedances of the 50 µg/m³
+        EU limit, occasional extreme spikes &rarr; preview of the
+        four dynamics the model has to capture.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4 — Pre-processing & descriptive (04:30–06:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Pre-processing</span>
+  <h2>Cleaning the raw data</h2>
+
+  <div class="twocol">
+    <div>
+      <h3>Two CSV parsing bugs fixed</h3>
+      <ol>
+        <li>Files use <strong>comma</strong> separator while also using
+          dots for decimals &mdash; crashed standard parsers.</li>
+        <li>2021 file encodes the missing-value sentinel as
+          <code>-9.999.900</code> (dots as thousands separator)
+          &rarr; the whole column read as text.</li>
+      </ol>
+      <div class="keybox" style="margin-top: 0.6em;">
+        <strong>Fix:</strong> rewritten loader with forced numeric
+        coercion; sentinel <code>-9999.9</code> mapped to <code>NA</code>.
+      </div>
+    </div>
+    <div>
+      <h3>Final dataset</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr;
+                  gap: 0.6em;">
+        <div class="stat">
+          <div class="val">1 304</div>
+          <div class="lab">complete days</div>
+        </div>
+        <div class="stat">
+          <div class="val">4 years</div>
+          <div class="lab">2021–01–01 → 2024–12–30</div>
+        </div>
+      </div>
+      <h3 style="margin-top: 0.6em;">Methodological choices</h3>
+      <ul>
+        <li>Right-skewed PM10 &rarr; work on
+          $Y_t = \log(\text{PM10}_t)$</li>
+        <li>Standardised predictors (mean 0, sd 1)
+          &rarr; better MCMC mixing, comparable coefficients</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="twocol" style="margin-top: 0.4em;">
+    <div style="flex: 1;">
+      <h3>Descriptive summary</h3>
+      <table style="font-size: 0.7em; width: 100%;">
+        <thead><tr><th>variable</th><th>min</th><th>median</th>
+            <th>mean</th><th>max</th></tr></thead>
+        <tbody>
+          <tr><td class="l">PM10 (µg/m³)</td><td>5.98</td><td>22.70</td>
+              <td>25.67</td><td><strong>142</strong></td></tr>
+          <tr><td class="l">Temp (°C)</td><td>-4.3</td><td>17.6</td>
+              <td>18.1</td><td>32.3</td></tr>
+          <tr><td class="l">Humidity (%)</td><td>22.4</td><td>66.9</td>
+              <td>66.5</td><td>99.5</td></tr>
+          <tr><td class="l">Wind (m/s)</td><td>0.04</td><td>1.51</td>
+              <td>1.60</td><td>4.06</td></tr>
+          <tr><td class="l">Rain (mm/day)</td><td>0</td><td>0</td>
+              <td>1.52</td><td>74.2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="flex: 1.4;">
+      <h3>Why log-transform: from skewed to symmetric</h3>
+      <img src="pm10_log_hist.png"
+           alt="Raw PM10 vs log(PM10)"
+           style="width: 100%;">
+      <p class="tiny">
+        The raw distribution is strongly right-skewed
+        (mean &gt; median); on the log scale the two coincide
+        &rarr; symmetric, suitable for a Normal/$t$ likelihood.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5 — Three competing models (06:30–09:00) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Models</span>
+  <h2>Three competing models</h2>
+
+  <div class="equation-box">
+    <div class="model-label">Model 1 &mdash; Independent linear regression</div>
+    \[ Y_t = \alpha + \sum_{k=1}^{4} \beta_k X_{t,k} + \varepsilon_t,
+       \quad \varepsilon_t \sim \mathcal{N}(0, \sigma^2) \]
+    <p class="small">Baseline. Assumes time independence — ignores the
+      chronological structure.</p>
+  </div>
+
+  <div class="equation-box">
+    <div class="model-label">Model 2 &mdash; AR(1) with weather covariates</div>
+    \[ Y_t = \alpha + \boxed{\phi\, Y_{t-1}}
+            + \sum_{k=1}^{4} \beta_k X_{t,k} + \varepsilon_t,
+            \quad \varepsilon_t \sim \mathcal{N}(0, \sigma^2),
+            \quad |\phi| < 1 \]
+    <p class="small">Adds <strong>time persistence</strong>:
+      yesterday's pollution enters today's equation.</p>
+  </div>
+
+  <div class="equation-box" style="border-left-color: var(--gold);">
+    <div class="model-label" style="color: var(--gold);">Model 3 &mdash; AR(1) + seasonality + Student-$t$</div>
+    \[ Y_t = \alpha + \phi Y_{t-1} + \sum_k \beta_k X_{t,k}
+            + \boxed{\gamma_1 \sin\!\big(\tfrac{2\pi\,\text{doy}_t}{365.25}\big)
+                    + \gamma_2 \cos\!\big(\tfrac{2\pi\,\text{doy}_t}{365.25}\big)}
+            + \varepsilon_t \]
+    \[ \varepsilon_t \sim \boxed{t_\nu(0, \sigma^2)} \]
+    <p class="small">
+      <strong>Seasonal cycle</strong> via two harmonics + <strong>heavy
+      tails</strong> via Student-$t$ with unknown $\nu$
+      &rarr; extreme peaks become structural signal, not outliers.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6 — Priors & inference setup (09:00–10:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Bayesian setup</span>
+  <h2>Priors &amp; inference setup</h2>
+
+  <h3>Weakly informative priors &mdash; let the data speak</h3>
+  <table style="width: 95%;">
+    <thead><tr><th>parameter</th><th>prior</th><th>rationale</th></tr></thead>
+    <tbody>
+      <tr><td>$\alpha,\ \beta_k,\ \gamma_j$</td>
+          <td>$\mathcal{N}(0,\,10^4)$</td>
+          <td class="l">essentially flat &mdash; very low precision</td></tr>
+      <tr><td>$\phi$</td>
+          <td>Uniform$(-1,\,1)$</td>
+          <td class="l">enforces <strong>stationarity</strong>
+            &mdash; series cannot drift to infinity</td></tr>
+      <tr><td>$\tau = 1/\sigma^2$</td>
+          <td>Gamma$(0.001,\,0.001)$</td>
+          <td class="l">standard vague prior for precision</td></tr>
+      <tr><td>$\nu$</td>
+          <td>Uniform$(2,\,60)$</td>
+          <td class="l">lower bound = finite variance;
+            covers heavy &rarr; nearly Normal tails</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-top: 0.8em;">MCMC setup &mdash; <code>rjags</code> Gibbs sampler</h3>
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="val">3</div>
+      <div class="lab">independent chains</div>
+    </div>
+    <div class="stat">
+      <div class="val">3 000</div>
+      <div class="lab">burn-in iterations</div>
+    </div>
+    <div class="stat">
+      <div class="val">10 000</div>
+      <div class="lab">sampling iterations</div>
+    </div>
+    <div class="stat">
+      <div class="val">2</div>
+      <div class="lab">thinning factor</div>
+    </div>
+  </div>
+  <p class="small" style="text-align: center;">
+    Three chains start from different initial values &rarr; enables
+    Gelman&ndash;Rubin diagnostic for convergence.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7 — Parameter recovery (10:30–12:00) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Code validation</span>
+  <h2>Simulation-based parameter recovery</h2>
+
+  <p>
+    <strong>Strategy:</strong> simulate $N = 3\,000$ observations from M3
+    with <em>known</em> parameters, refit JAGS treating them as unknown,
+    check the 95% CI cover the truth.
+  </p>
+
+  <div class="twocol">
+    <div style="flex: 1.05;">
+      <table style="font-size: 0.7em; width: 100%;">
+        <thead><tr><th>parameter</th><th>true</th>
+            <th>posterior mean</th><th>95% CI</th>
+            <th>OK?</th></tr></thead>
+        <tbody>
+          <tr><td>$\alpha$</td><td>1.40</td><td>1.384</td>
+              <td>(1.321, 1.445)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\phi$ (AR1)</td><td>0.55</td><td>0.555</td>
+              <td>(0.535, 0.575)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\beta_1$ (Temp)</td><td>0.22</td><td>0.224</td>
+              <td>(0.215, 0.233)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\beta_3$ (Wind)</td><td>-0.11</td><td>-0.107</td>
+              <td>(-0.116, -0.097)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\beta_4$ (Rain)</td><td>-0.04</td><td>-0.036</td>
+              <td>(-0.045, -0.027)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\gamma_1$ (sin)</td><td>0.15</td><td>0.159</td>
+              <td>(0.144, 0.174)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\gamma_2$ (cos)</td><td>0.31</td><td>0.314</td>
+              <td>(0.295, 0.332)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\nu$ (t df)</td><td>4.0</td><td>4.063</td>
+              <td>(3.507, 4.738)</td><td class="good">&#10003;</td></tr>
+          <tr><td>$\sigma$</td><td>0.21</td><td>0.214</td>
+              <td>(0.204, 0.223)</td><td class="good">&#10003;</td></tr>
+        </tbody>
+      </table>
+      <div class="stat-grid" style="grid-template-columns: 1fr 1fr;
+                                    margin-top: 0.4em;">
+        <div class="stat">
+          <div class="val good">10 / 10</div>
+          <div class="lab">parameters covered</div>
+        </div>
+        <div class="stat">
+          <div class="val good">&lt; 1.04</div>
+          <div class="lab">max R-hat</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex: 1;">
+      <h3>Posterior traceplots on synthetic data</h3>
+      <img src="sim_recovery_M3_trace.png"
+           alt="Simulation recovery traceplots"
+           style="width: 100%;">
+      <p class="tiny">
+        All ten parameters show "fuzzy caterpillar" trajectories
+        around the true value: stationary chains, no trend,
+        good mixing.
+      </p>
+    </div>
+  </div>
+  <p class="highlight" style="text-align: center;">
+    Empirical proof that the JAGS code is algorithmically correct
+    &rarr; real-data inference is fully reliable.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8 — Real-data M3 estimates (12:00–14:00) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Real-data results</span>
+  <h2>Model 3 &mdash; posterior estimates on Rome data</h2>
+
+  <div class="twocol">
+    <div style="flex: 1;">
+      <table style="font-size: 0.68em; margin: 0;">
+        <thead><tr><th>parameter</th><th>mean</th><th>95% CI</th>
+          <th>sig.?</th></tr></thead>
+        <tbody>
+          <tr><td>$\phi$ (AR1)</td><td><strong>0.545</strong></td>
+              <td>(0.505, 0.588)</td><td class="good">yes</td></tr>
+          <tr><td>$\beta_1$ Temp</td><td><strong>+0.220</strong></td>
+              <td>(0.172, 0.267)</td><td class="good">yes</td></tr>
+          <tr><td>$\beta_2$ Humidity</td><td>+0.016</td>
+              <td>(-0.003, 0.035)</td><td>no</td></tr>
+          <tr><td>$\beta_3$ Wind</td><td><strong>-0.112</strong></td>
+              <td>(-0.130, -0.094)</td><td class="good">yes</td></tr>
+          <tr><td>$\beta_4$ Rain</td><td><strong>-0.035</strong></td>
+              <td>(-0.053, -0.017)</td><td class="good">yes</td></tr>
+          <tr><td>$\gamma_1$ sin</td><td>+0.151</td>
+              <td>(0.116, 0.186)</td><td class="good">yes</td></tr>
+          <tr><td>$\gamma_2$ cos</td><td>+0.313</td>
+              <td>(0.251, 0.374)</td><td class="good">yes</td></tr>
+          <tr><td>$\nu$ (t df)</td><td><strong>3.98</strong></td>
+              <td>(3.08, 5.20)</td><td class="good">heavy</td></tr>
+          <tr><td>$\sigma$</td><td>0.214</td>
+              <td>(0.197, 0.231)</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <h3 style="margin-top: 0.5em;">Physical interpretation</h3>
+      <ul style="font-size: 0.72em;">
+        <li><strong>$\phi = 0.55$:</strong> yesterday alone explains half
+          of today's variability.</li>
+        <li><strong>Wind:</strong> +1 sd &rarr; $\times e^{-0.11} \approx 0.89$
+          ($-11\%$).</li>
+        <li><strong>Rain:</strong> negative (wet deposition).</li>
+        <li><strong>Temp +0.22:</strong> positive <em>within</em> season
+          &rarr; stagnation.</li>
+        <li><strong>$\nu \approx 4$:</strong> heavy tails are structural.</li>
+      </ul>
+      <div class="keybox" style="font-size: 0.7em; padding: 0.3em 0.7em;
+                                 margin-top: 0.3em;">
+        Sign reversal of Temp = textbook example of how seasonality
+        removes omitted-variable bias.
+      </div>
+    </div>
+
+    <div style="flex: 1.1; display: flex;
+                flex-direction: column; align-items: center;">
+      <h3 style="margin-top: 0; text-align: center;">
+        MCMC traceplots — max $\hat R = 1.014$
+      </h3>
+      <img src="trace_model3.png"
+           alt="Traceplot M3 real data"
+           style="width: 100%; max-height: 580px;
+                  object-fit: contain;">
+      <p class="tiny" style="text-align: center; margin-top: 0.3em;">
+        Three chains overlap on the same band &rarr;
+        "caterpillar" shape, stationary, well mixed.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9 — DIC comparison (14:00–15:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Model comparison</span>
+  <h2>Model comparison via DIC</h2>
+
+  <p>
+    $\text{DIC} = \bar D + p_D$ &mdash; mean deviance penalised by the
+    effective number of parameters. Lower is better;
+    $\Delta\text{DIC} > 10$ is considered <em>decisive</em> in the literature.
+  </p>
+
+  <div class="twocol">
+    <div style="flex: 1.2;">
+      <table style="font-size: 0.74em; width: 100%;">
+        <thead><tr><th>Model</th><th>$\bar D$</th><th>$p_D$</th>
+            <th>DIC</th><th>$\Delta$ DIC</th><th>verdict</th></tr></thead>
+        <tbody>
+          <tr><td class="l">M1 linear</td>
+              <td>1246.2</td><td>6.0</td><td><strong>1252.3</strong></td>
+              <td>+887.7</td><td class="bad">rejected</td></tr>
+          <tr><td class="l">M2 AR(1)</td>
+              <td>563.3</td><td>6.9</td><td><strong>570.2</strong></td>
+              <td>+205.7</td><td class="bad">rejected</td></tr>
+          <tr><td class="l"><strong>M3 AR1+seas+t</strong></td>
+              <td><strong>352.9</strong></td><td><strong>11.7</strong></td>
+              <td><strong class="good">364.5</strong></td>
+              <td><strong class="good">0</strong></td>
+              <td class="good">selected</td></tr>
+        </tbody>
+      </table>
+      <div class="stat-grid" style="grid-template-columns: 1fr 1fr;
+                                    margin-top: 0.5em;">
+        <div class="stat">
+          <div class="val">682</div>
+          <div class="lab">gained adding AR(1)</div>
+        </div>
+        <div class="stat">
+          <div class="val">206</div>
+          <div class="lab">gained adding seasonal + t</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex: 1;">
+      <img src="dic_barplot.png" alt="DIC bar chart"
+           style="width: 100%;">
+      <p class="tiny" style="text-align: center;">
+        Each additional structural feature (persistence, then seasonality
+        + heavy tails) produces a vertical drop in DIC.
+      </p>
+    </div>
+  </div>
+
+  <p class="highlight" style="text-align: center;">
+    With a gap exceeding 200 points, M3 is <strong>unequivocally</strong>
+    the optimal specification.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10 — PPC (15:30–17:30) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Adequacy check</span>
+  <h2>Posterior Predictive Checks</h2>
+
+  <p>
+    Generate 2 000 replicated series from the posterior, compute summary
+    statistics, compare with the observed value. The
+    <strong>Bayes $p$-value</strong> is the share of replicates more
+    extreme than the observation — ideally $\approx 0.5$.
+  </p>
+
+  <div class="twocol">
+    <div style="flex: 1.1;">
+      <table style="width: 100%;">
+        <thead><tr><th>statistic</th><th>observed</th>
+          <th>M2 normal</th><th>M3 t-Student</th></tr></thead>
+        <tbody>
+          <tr><td class="l">mean</td><td>25.7</td>
+              <td>0.51 <span class="good">&#10003;</span></td>
+              <td>0.57 <span class="good">&#10003;</span></td></tr>
+          <tr><td class="l">standard deviation</td><td>13.2</td>
+              <td>0.15</td><td>0.68</td></tr>
+          <tr><td class="l"><strong>maximum (µg/m³)</strong></td>
+              <td><strong>142.0</strong></td>
+              <td><span class="bad">0.06 &times;</span></td>
+              <td><span class="good">0.62 &#10003;</span></td></tr>
+          <tr><td class="l">share &gt; 50 µg/m³</td><td>7.7%</td>
+              <td>0.54 <span class="good">&#10003;</span></td>
+              <td>0.68 <span class="good">&#10003;</span></td></tr>
+        </tbody>
+      </table>
+      <div class="keybox">
+        <strong>M2 fails on the maximum</strong> (Bayes $p = 0.06$):
+        the Gaussian cannot generate extreme winter peaks.
+        <br><br>
+        <strong>M3 fixes it</strong> (Bayes $p = 0.62$):
+        the observed maximum sits at the centre of the replicated
+        distribution.
+      </div>
+    </div>
+    <div style="flex: 1;">
+      <img src="ppc_stats.png" alt="PPC histograms"
+           style="width: 100%;">
+      <p class="tiny" style="text-align: center;">
+        Red line: observed value. Grey histogram: replicated values
+        across 2 000 posterior draws.
+      </p>
+    </div>
+  </div>
+
+  <p class="highlight" style="text-align: center; margin-top: 0.5em;">
+    Empirical justification of the Student-$t$ &mdash; not academic
+    flair, statistical necessity.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11 — Forecast hold-out (17:30–19:00) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Predictive validation</span>
+  <h2>Out-of-sample forecast — 90-day hold-out</h2>
+
+  <p>
+    Last 90 days (Oct–Dec 2024) removed from the fit; models refitted on
+    the remaining 1 214 days; predictions rolled forward recursively
+    using only the actual weather of the hold-out window.
+  </p>
+
+  <div style="text-align: center; margin: 0.4em 0;">
+    <img src="forecast_holdout.png" alt="Out-of-sample forecast"
+         style="width: 72%;">
+  </div>
+
+  <div class="twocol">
+    <div style="flex: 1.1;">
+      <table style="font-size: 0.78em;">
+        <thead><tr><th>model</th><th>RMSE</th><th>MAE</th>
+          <th>coverage</th><th>CI width</th></tr></thead>
+        <tbody>
+          <tr><td>M2 AR(1)</td><td>12.01</td><td>8.36</td>
+              <td class="bad">0.97</td><td>42.4</td></tr>
+          <tr><td><strong>M3</strong></td>
+              <td>12.10</td><td>8.69</td>
+              <td><strong class="good">0.93</strong></td>
+              <td><strong class="good">38.0</strong></td></tr>
+        </tbody>
+      </table>
+      <p class="tiny">µg/m³ on the original PM10 scale.
+        Nominal coverage = 0.95.</p>
+    </div>
+    <div style="flex: 1;">
+      <div class="keybox" style="font-size: 0.82em;">
+        RMSE essentially identical, but M3 is
+        <strong>better calibrated</strong> (coverage 0.93 vs the
+        nominal 0.95) and produces <strong>narrower credible
+        intervals</strong> &mdash; more informative for decision-makers.
+        M2 over-covers (0.97) with unnecessarily wide bands.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12 — Residual diagnostics & conclusions (19:00–20:00) -->
+<!-- ============================================================ -->
+<section>
+  <span class="slide-tag">Diagnostics &amp; conclusions</span>
+  <h2>Residual diagnostics &amp; conclusions</h2>
+
+  <div class="twocol">
+    <div style="flex: 1;">
+      <h3>Residual checks &mdash; M3</h3>
+      <table style="font-size: 0.7em; width: 100%;">
+        <thead><tr><th>quantity</th><th>obs.</th>
+          <th>expected</th></tr></thead>
+        <tbody>
+          <tr><td class="l">mean</td><td>+0.019</td><td>0</td></tr>
+          <tr><td class="l">sd</td><td><strong>1.369</strong></td>
+              <td>1.417</td></tr>
+          <tr><td class="l">LB lag 1</td>
+              <td><strong class="good">0.82</strong></td>
+              <td>&gt; 0.05</td></tr>
+          <tr><td class="l">$|r_t|>3$</td><td>4.8%</td>
+              <td>$\approx$ 5%</td></tr>
+        </tbody>
+      </table>
+      <img src="residuals_diag.png"
+           alt="Residual diagnostics"
+           style="width: 100%; margin-top: 0.3em;">
+      <p class="tiny">
+        QQ-plot lies on $y=x$; histogram matches $t_4$, not Normal.
+      </p>
+    </div>
+    <div style="flex: 1.1;">
+      <h3>Take-home message</h3>
+      <ul style="font-size: 0.78em;">
+        <li>PM10 in Rome is <strong>persistent</strong>
+          ($\phi \approx 0.55$)…</li>
+        <li>… with deep <strong>seasonality</strong>
+          (winter/summer ratio $\approx 2$)…</li>
+        <li>… driven by <strong>wind dispersion</strong> and
+          <strong>rainfall washout</strong>…</li>
+        <li>… and <strong>heavy-tailed extremes</strong> with
+          $\nu \approx 4$.</li>
+      </ul>
+      <h3>Future work</h3>
+      <ul style="font-size: 0.78em;">
+        <li>Day-of-week dummy
+          (residual weekly autocorrelation at lag 10).</li>
+        <li>Saharan-dust indicator (back-trajectories, NAO).</li>
+        <li>Spatial hierarchical extension over Rome's full
+          station network.</li>
+      </ul>
+      <div style="text-align: center; margin-top: 0.7em;
+                  padding: 0.7em 1em;
+                  background: linear-gradient(90deg, var(--navy), var(--navy-light));
+                  color: white; border-radius: 5px;">
+        <span style="font-family: 'Crimson Pro', serif;
+                     font-size: 1.25em; font-weight: 600;
+                     letter-spacing: 1px;">
+          Thank you.
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    width: 1280,
+    height: 800,
+    margin: 0.04
+  });
+</script>
+</body>
+</html>

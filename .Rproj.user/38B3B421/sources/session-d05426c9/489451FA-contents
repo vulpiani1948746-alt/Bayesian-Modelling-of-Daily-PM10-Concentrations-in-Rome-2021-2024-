@@ -1,0 +1,238 @@
+#I regenerate better images
+suppressPackageStartupMessages({
+  library(rjags); library(coda); library(dplyr); library(lubridate)
+})
+setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+
+res    <- readRDS("real_fit_results.rds")
+fit2   <- res$fit2; fit3 <- res$fit3
+dati   <- res$dati
+idx_tr <- res$idx_tr; idx_te <- res$idx_te
+dati_tr <- dati[idx_tr, ]; dati_te <- dati[idx_te, ]
+
+
+# Fig. 1 - traceplot Model 3
+
+samp <- fit3$samples          
+vars <- c("alpha","phi","beta[1]","beta[2]","beta[3]","beta[4]",
+          "gamma1","gamma2","sigma","nu")
+labels <- c(alpha="alpha",
+            phi="phi (AR1)",
+            "beta[1]"="beta1 (Temp)", "beta[2]"="beta2 (Hum.)",
+            "beta[3]"="beta3 (Wind)", "beta[4]"="beta4 (Rain)",
+            gamma1="gamma1 (sin doy)", gamma2="gamma2 (cos doy)",
+            sigma="sigma", nu="nu (t df)")
+cols <- c("black", "tomato", "steelblue")
+
+png("trace_model3.png", width = 1500, height = 1200, res = 130)
+# layout: 1 riga sottile per la leggenda + 5 righe x 2 colonne di traceplot 
+layout(rbind(c(1, 1), matrix(2:11, nrow = 5, ncol = 2, byrow = TRUE)),
+       heights = c(0.5, rep(1, 5)))
+par(mar = c(0, 0, 0, 0))
+plot.new()
+legend("center", horiz = TRUE,
+       legend = c("chain 1", "chain 2", "chain 3"),
+       col = cols, lty = 1, lwd = 2,
+       title = "MCMC chains (3 independent runs)",
+       bty = "n", cex = 1.3)
+
+# 10 traceplot
+par(mar = c(3, 3, 2, 1), mgp = c(1.8, 0.6, 0))
+for (v in vars) {
+  ch <- lapply(samp, function(c) as.numeric(c[, v]))
+  yl <- range(unlist(ch))
+  plot(NA, xlim = c(1, length(ch[[1]])), ylim = yl,
+       main = labels[v], xlab = "iteration", ylab = "value",
+       cex.main = 1.05)
+  for (i in seq_along(ch))
+    lines(ch[[i]], col = cols[i], lwd = 0.5)
+}
+dev.off()
+cat("Saved trace_model3.png \n")
+
+
+# Fig. 2 - PPC 
+Y_tr <- log(dati_tr$PM10)
+
+X_tr_ppc  <- scale(as.matrix(dati_tr[, c("Temp","Umidita","Vento","Pioggia")]),
+                   center = res$prep$mean, scale = res$prep$sd)
+doy_ppc   <- yday(dati_tr$Data)
+sin1_ppc  <- sin(2*pi*doy_ppc/365.25)
+cos1_ppc  <- cos(2*pi*doy_ppc/365.25)
+mat3_ppc  <- as.matrix(fit3$samples)
+set.seed(20260610)
+idx_iter  <- sample(nrow(mat3_ppc), 2000)
+N_obs     <- length(Y_tr)
+rep_mat   <- matrix(NA_real_, length(idx_iter), N_obs)
+for (i in seq_along(idx_iter)) {
+  th  <- mat3_ppc[idx_iter[i], ]
+  a   <- th["alpha"];  ph <- th["phi"]
+  b   <- th[paste0("beta[", 1:4, "]")]
+  g1  <- th["gamma1"]; g2 <- th["gamma2"]
+  sg  <- th["sigma"];  nuu <- th["nu"]
+  mu1 <- a/(1-ph) + sum(b*X_tr_ppc[1,]) + g1*sin1_ppc[1] + g2*cos1_ppc[1]
+  rep_mat[i, 1] <- mu1 + sg * rt(1, df = nuu)
+  for (t in 2:N_obs) {
+    mut <- a + ph*Y_tr[t-1] + sum(b*X_tr_ppc[t,]) +
+           g1*sin1_ppc[t] + g2*cos1_ppc[t]
+    rep_mat[i, t] <- mut + sg * rt(1, df = nuu)
+  }
+}
+T_obs <- c(mean = mean(exp(Y_tr)), sd = sd(exp(Y_tr)),
+           max = max(exp(Y_tr)),
+           share_over_50 = mean(exp(Y_tr) > 50))
+T_rep <- t(apply(rep_mat, 1, function(r) {
+  x <- exp(r); c(mean(x), sd(x), max(x), mean(x > 50))
+}))
+ppp <- colMeans(sweep(T_rep, 2, T_obs, ">="))
+names(ppp) <- names(T_obs)
+
+png("ppc_stats.png", width = 1500, height = 1100, res = 130)
+layout(matrix(c(1, 1, 2:5), nrow = 3, byrow = TRUE),
+       heights = c(0.25, 1, 1))
+
+par(mar = c(0, 0, 0, 0))
+plot.new()
+legend("center", horiz = TRUE, bty = "n", cex = 1.2,
+       legend = c("replicated statistic T(Y_rep)",
+                  "observed statistic T(Y_obs)"),
+       col = c("grey55", "red"),
+       lwd = c(NA, 2), pch = c(15, NA), pt.cex = 2)
+# 4 histo
+par(mar = c(4, 4, 3, 1))
+nice_names <- c(mean = "mean (µg/m³)",
+                sd = "standard deviation",
+                max = "maximum (µg/m³)",
+                share_over_50 = "share of days > 50 µg/m³")
+for (j in seq_along(T_obs)) {
+  hist(T_rep[, j], breaks = 40, col = "grey80", border = "white",
+       main = paste0(nice_names[names(T_obs)[j]],
+                     "\n(Bayes p = ", sprintf("%.3f", ppp[j]), ")"),
+       xlab = "T", ylab = "frequency", cex.main = 1.0)
+  abline(v = T_obs[j], col = "red", lwd = 2)
+}
+dev.off()
+cat("Saved ppc_stats.png \n")
+
+
+# Fig. 3 - Forecast hold-out 
+F2 <- res$F2; F3 <- res$F3
+med2 <- apply(exp(F2), 2, median)
+lo2  <- apply(exp(F2), 2, quantile, 0.025); hi2 <- apply(exp(F2), 2, quantile, 0.975)
+med3 <- apply(exp(F3), 2, median)
+lo3  <- apply(exp(F3), 2, quantile, 0.025); hi3 <- apply(exp(F3), 2, quantile, 0.975)
+
+png("forecast_holdout.png", width = 1500, height = 800, res = 130)
+par(mar = c(4, 4, 3, 1))
+plot(dati_te$Data, dati_te$PM10, pch = 19, col = "black",
+     ylim = c(0, max(dati_te$PM10, hi3, hi2)),
+     xlab = "Date", ylab = expression(PM[10]~"(µg/m³)"),
+     main = "Out-of-sample forecast (90 days held out, fitted on previous 1214 days)")
+polygon(c(dati_te$Data, rev(dati_te$Data)), c(lo2, rev(hi2)),
+        col = adjustcolor("steelblue", 0.18), border = NA)
+polygon(c(dati_te$Data, rev(dati_te$Data)), c(lo3, rev(hi3)),
+        col = adjustcolor("tomato",   0.18), border = NA)
+lines(dati_te$Data, med2, col = "steelblue", lwd = 1.6)
+lines(dati_te$Data, med3, col = "tomato",   lwd = 1.6)
+legend("topright", inset = 0.02,
+       legend = c("observed PM10 (held-out)",
+                  "M2 AR(1) posterior median forecast",
+                  "M3 AR(1)+seas+t posterior median forecast",
+                  "M2 95% credible band",
+                  "M3 95% credible band"),
+       col = c("black","steelblue","tomato",
+               adjustcolor("steelblue",0.5), adjustcolor("tomato",0.5)),
+       pch = c(19, NA, NA, 15, 15),
+       lty = c(NA, 1, 1, NA, NA),
+       pt.cex = c(1, NA, NA, 2, 2),
+       bty = "n", cex = 0.9)
+dev.off()
+cat("Saved forecast_holdout.png \n")
+
+
+# Fig. 4 -  residual Diagnostic
+
+mat   <- as.matrix(fit3$samples)
+get   <- function(nm) mean(mat[, nm])
+alpha <- get("alpha"); phi  <- get("phi")
+beta  <- sapply(1:4, function(k) get(paste0("beta[", k, "]")))
+gamma1 <- get("gamma1"); gamma2 <- get("gamma2")
+sigma <- get("sigma");   nu   <- get("nu")
+
+X_tr  <- scale(as.matrix(dati_tr[, c("Temp","Umidita","Vento","Pioggia")]),
+               center = res$prep$mean, scale = res$prep$sd)
+doy_tr  <- yday(dati_tr$Data)
+sin1_tr <- sin(2*pi*doy_tr/365.25); cos1_tr <- cos(2*pi*doy_tr/365.25)
+N <- length(Y_tr)
+
+mu_fit <- numeric(N)
+mu_fit[1] <- alpha/(1-phi) + sum(beta*X_tr[1,]) +
+             gamma1*sin1_tr[1] + gamma2*cos1_tr[1]
+for (t in 2:N)
+  mu_fit[t] <- alpha + phi*Y_tr[t-1] + sum(beta*X_tr[t,]) +
+               gamma1*sin1_tr[t] + gamma2*cos1_tr[t]
+res_std <- (Y_tr - mu_fit)/sigma
+
+png("residuals_diag.png", width = 1600, height = 1100, res = 130)
+op <- par(mfrow = c(2, 3), mar = c(4, 4, 3, 1))
+
+# (1) residui nel tempo
+plot(dati_tr$Data, res_std, pch = 19, cex = 0.4, col = "grey25",
+     xlab = "date", ylab = "standardized residual",
+     main = "(a) residuals vs time")
+abline(h = 0, col = "red")
+abline(h = c(-3, 3), col = "red", lty = 2)
+legend("topright", legend = c("zero line", "±3 sd threshold"),
+       col = "red", lty = c(1, 2), bty = "n", cex = 0.85)
+
+# (2) ACF
+acf(res_std, lag.max = 40, main = "(b) ACF of residuals",
+    xlab = "lag (days)", ylab = "autocorrelation")
+legend("topright", legend = c("blue dashed = 95% CI under H0"),
+       text.col = "blue", bty = "n", cex = 0.8)
+
+# (3) PACF
+pacf(res_std, lag.max = 40, main = "(c) PACF of residuals",
+     xlab = "lag (days)", ylab = "partial autocorrelation")
+
+# (4) QQ-plot t_nu
+qs <- ppoints(N); q_emp <- sort(res_std)
+q_th <- qt(qs, df = nu)
+plot(q_th, q_emp, pch = 19, cex = 0.4, col = "grey25",
+     xlab = paste0("theoretical t_", round(nu,1), " quantile"),
+     ylab = "empirical residual quantile",
+     main = "(d) QQ-plot vs Student-t")
+abline(0, 1, col = "red")
+legend("topleft", legend = paste0("y = x (ideal fit)"),
+       col = "red", lty = 1, bty = "n", cex = 0.85)
+
+# (5) residual vs fitted
+plot(mu_fit, res_std, pch = 19, cex = 0.4, col = "grey25",
+     xlab = "fitted value (log PM10)", ylab = "standardized residual",
+     main = "(e) residuals vs fitted")
+abline(h = 0, col = "red")
+lines(lowess(mu_fit, res_std), col = "tomato", lwd = 2)
+legend("topright",
+       legend = c("zero line", "LOWESS smoother"),
+       col = c("red", "tomato"), lty = 1, lwd = c(1, 2),
+       bty = "n", cex = 0.85)
+
+# (6) hist vs t_nu and N(0,1)
+hist(res_std, breaks = 60, freq = FALSE,
+     col = "grey85", border = "white",
+     xlim = c(-8, 8), ylim = c(0, 0.45),
+     xlab = "standardized residual", ylab = "density",
+     main = "(f) residuals vs theoretical densities")
+xx <- seq(-8, 8, by = 0.05)
+lines(xx, dt(xx, df = nu), col = "tomato", lwd = 2)
+lines(xx, dnorm(xx), col = "steelblue", lwd = 1.5, lty = 2)
+legend("topright",
+       legend = c("residual histogram",
+                  paste0("Student-t (nu=", round(nu,2), ")"),
+                  "Normal(0,1) - for reference"),
+       col = c("grey60", "tomato", "steelblue"),
+       lty = c(1, 1, 2), lwd = c(NA, 2, 1.5),
+       pch = c(15, NA, NA), pt.cex = c(2, NA, NA),
+       bty = "n", cex = 0.85)
+par(op); dev.off()
+cat("Saved residuals_diag.png \n")

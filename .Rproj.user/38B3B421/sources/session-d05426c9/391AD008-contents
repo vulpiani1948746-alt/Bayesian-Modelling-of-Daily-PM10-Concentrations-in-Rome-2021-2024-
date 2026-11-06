@@ -1,0 +1,127 @@
+# FASE 1 -Data setup
+# PM10 (EEA, Roma-Preneste station / L.GO PERESTRELLO)
+#  +  Daily weather ARPA Lazio (AL001 station)
+
+suppressPackageStartupMessages({
+  library(EEAaq)
+  library(dplyr)
+  library(tidyr)
+  library(lubridate)
+})
+
+setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+
+pm10_cache <- "pm10_roma_2021_2024.rds"
+
+if (file.exists(pm10_cache)) {
+  message("Load PM10 from local cache ", pm10_cache)
+  pm10_roma <- readRDS(pm10_cache)
+} else {
+  message("Download the list from EEA stations")
+  stazioni_totali <- EEAaq_get_stations(byStation = TRUE, complete = FALSE)
+
+  id_stazioni_roma <- stazioni_totali %>%
+    filter(NUTS3 == "Roma") %>%
+    pull(AirQualityStationEoICode) %>%
+    unique()
+
+  message("Dawnload PM10 for: ", length(id_stazioni_roma),
+          " station in the province of Rome (2021-2024)")
+
+  pm10_roma <- EEAaq_get_data(
+    IDstations = id_stazioni_roma,
+    pollutants = "PM10",
+    from       = "2021-01-01",
+    to         = "2024-12-31",
+    verbose    = TRUE
+  )
+
+  saveRDS(pm10_roma, pm10_cache)
+  message("Cached: ", pm10_cache)
+}
+
+cat("Station PM10 available:\n")
+print(unique(pm10_roma$AirQualityStationName))
+
+#Filter L.GO PERESTRELLO (urban background) and aggregate to daily
+
+#EEAaq data are hourly, daily average
+pm10_preneste <- pm10_roma %>%
+  filter(AirQualityStationName == "L.GO PERESTRELLO") %>%
+  mutate(Data = as.Date(DatetimeBegin)) %>%
+  group_by(Data) %>%
+  summarise(PM10 = mean(PM10, na.rm = TRUE), .groups = "drop") %>%
+  mutate(PM10 = ifelse(is.nan(PM10), NA_real_, PM10))
+
+cat("\nPM10 daily - Roma Preneste:\n")
+cat("  days:", nrow(pm10_preneste),
+    " | NA:", sum(is.na(pm10_preneste$PM10)), "\n")
+print(head(pm10_preneste))
+
+
+# ARPA Lazio weather
+
+leggi_meteo <- function(path) {
+  
+  #data cleaning
+  d <- read.csv(path, sep = ",", header = TRUE,
+                fileEncoding = "UTF-8-BOM", stringsAsFactors = FALSE)
+  num_cols <- c("T", "Ur", "VV", "DV", "Prec", "Pres",
+                "Rg", "Rg_Down", "L_Up", "L_Down", "Rn")
+  for (cc in intersect(num_cols, names(d))) {
+    x <- suppressWarnings(as.numeric(d[[cc]]))
+    x[!is.na(x) & abs(x - (-9999.9)) < 1e-6] <- NA_real_
+    d[[cc]] <- x
+  }
+  d
+}
+
+meteo_completo <- bind_rows(
+  leggi_meteo("dati-meteorologici_2021.csv"),
+  leggi_meteo("dati-meteorologici_2022.csv"),
+  leggi_meteo("dati-meteorologici_2023.csv"),
+  leggi_meteo("dati-meteorologici_2024.csv")
+)
+
+cat("\nRough weather:", nrow(meteo_completo), "rows |",
+    "stations:", paste(sort(unique(meteo_completo$cod_staz)), collapse = ", "),
+    "\n")
+
+STAZIONE_METEO <- "AL007"
+meteo_giorn <- meteo_completo %>%
+  filter(cod_staz == STAZIONE_METEO) %>%
+  mutate(Data = as.Date(substr(yyyymmdd_hhii, 1, 8), format = "%Y%m%d")) %>%
+  group_by(Data) %>%
+  summarise(
+    Temp    = mean(T,    na.rm = TRUE),
+    Umidita = mean(Ur,   na.rm = TRUE),
+    Vento   = mean(VV,   na.rm = TRUE),
+    Pioggia = sum(Prec,  na.rm = TRUE),   # total daily rainfall
+    .groups = "drop"
+  ) %>%
+  mutate(across(c(Temp, Umidita, Vento),
+                ~ ifelse(is.nan(.), NA_real_, .)))
+
+cat("\nDaily weather:", STAZIONE_METEO, ":",
+    nrow(meteo_giorn), "days |",
+    "NA per columns:\n")
+print(colSums(is.na(meteo_giorn)))
+print(head(meteo_giorn))
+
+
+# Merge PM10 + weather via Data, drop NA
+
+dati <- pm10_preneste %>%
+  inner_join(meteo_giorn, by = "Data") %>%
+  arrange(Data) %>%
+  drop_na()
+
+cat("\nFinal dataset :\n")
+cat("  rows:", nrow(dati),
+    " | range date:", as.character(min(dati$Data)), "->",
+    as.character(max(dati$Data)), "\n")
+print(summary(dati))
+
+saveRDS(dati, "dataset_finale.rds")
+write.csv(dati, "dataset_finale.csv", row.names = FALSE)
+cat("\nSaved: dataset_finale.rds / .csv\n")
