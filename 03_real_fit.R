@@ -8,7 +8,7 @@ suppressPackageStartupMessages({
 })
 load.module("dic")
 
-setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+# setwd() not needed: open progetto_fsl2.Rproj so the working directory is the project root
 set.seed(20260607)
 
 # ------------- dataset ---------------------------------------

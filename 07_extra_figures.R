@@ -2,7 +2,7 @@
 #additional graphics for the presentation
 
 suppressPackageStartupMessages({library(dplyr); library(lubridate)})
-setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+# setwd() not needed: open progetto_fsl2.Rproj so the working directory is the project root
 
 dati <- readRDS("dataset_finale.rds") %>% arrange(Data)
 cat("N =", nrow(dati), "days\n")

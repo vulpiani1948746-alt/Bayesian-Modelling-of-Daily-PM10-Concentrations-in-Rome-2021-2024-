@@ -2,7 +2,7 @@
 suppressPackageStartupMessages({
   library(rjags); library(coda); library(dplyr); library(lubridate)
 })
-setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+# setwd() not needed: open progetto_fsl2.Rproj so the working directory is the project root
 
 res    <- readRDS("real_fit_results.rds")
 fit2   <- res$fit2; fit3 <- res$fit3

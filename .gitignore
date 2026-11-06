@@ -1,0 +1,11 @@
+# R / RStudio
+.Rhistory
+.RData
+.Rapp.history
+.Rproj.user/
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/

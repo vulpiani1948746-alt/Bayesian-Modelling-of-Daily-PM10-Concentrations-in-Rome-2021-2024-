@@ -9,7 +9,7 @@ suppressPackageStartupMessages({
   library(lubridate)
 })
 
-setwd("/Users/chiaravulpiani/Desktop/progetto_fsl2")
+# setwd() not needed: open progetto_fsl2.Rproj so the working directory is the project root
 
 pm10_cache <- "pm10_roma_2021_2024.rds"
 
